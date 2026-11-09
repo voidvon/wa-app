@@ -223,6 +223,8 @@ CREATE INDEX IF NOT EXISTS wa_decrypted_messages_change_target_idx ON wa_decrypt
 ALTER TABLE wa_contacts ADD COLUMN IF NOT EXISTS saved_name TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS wa_dashboard_configuration (id TEXT PRIMARY KEY, payload BYTEA NOT NULL);
 CREATE TABLE IF NOT EXISTS wa_dashboard_sessions (token_hash TEXT PRIMARY KEY, expires_at BIGINT NOT NULL);
+ALTER TABLE wa_dashboard_sessions ADD COLUMN IF NOT EXISTS absolute_expires_at BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE wa_dashboard_sessions ADD COLUMN IF NOT EXISTS remember_device INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS wa_dashboard_sessions_expiry ON wa_dashboard_sessions(expires_at);
 CREATE TABLE IF NOT EXISTS wa_message_notifications (id TEXT PRIMARY KEY, payload BYTEA NOT NULL, next_attempt BIGINT NOT NULL, delivered INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS wa_message_notifications_pending ON wa_message_notifications(delivered,next_attempt,id);

@@ -22,7 +22,7 @@ func TestAdministrationPersistence(t *testing.T) {
 			if created, err := storage.CreateAdministrator(t.Context(), admin); err != nil || created {
 				t.Fatal("administrator overwritten", err)
 			}
-			if err := storage.SaveDashboardSession(t.Context(), &protocolv1.DashboardSession{TokenHash: "synthetic-hash", ExpiresAt: timestamppb.New(now.Add(time.Hour))}); err != nil {
+			if err := storage.SaveDashboardSession(t.Context(), &protocolv1.DashboardSession{TokenHash: "synthetic-hash", ExpiresAt: timestamppb.New(now.Add(time.Hour)), AbsoluteExpiresAt: timestamppb.New(now.Add(8 * time.Hour))}); err != nil {
 				t.Fatal(err)
 			}
 			if err := storage.SavePrivateConfiguration(t.Context(), "feishu", []byte(`{"enabled":false}`)); err != nil {
@@ -39,17 +39,17 @@ func TestAdministrationPersistence(t *testing.T) {
 			if err != nil || loaded.GetUsername() != admin.GetUsername() {
 				t.Fatal("administrator lost on restart", err)
 			}
-			valid, err := storage.HasDashboardSession(t.Context(), "synthetic-hash", now)
-			if err != nil || !valid {
+			session, err := storage.GetDashboardSession(t.Context(), "synthetic-hash", now)
+			if err != nil || session == nil {
 				t.Fatal("session lost on restart", err)
 			}
-			if valid, err := storage.HasDashboardSession(t.Context(), "synthetic-hash", now.Add(2*time.Hour)); err != nil || valid {
+			if session, err := storage.GetDashboardSession(t.Context(), "synthetic-hash", now.Add(2*time.Hour)); err != nil || session != nil {
 				t.Fatal("expired session accepted", err)
 			}
 			if err := storage.DeleteDashboardSession(t.Context(), "synthetic-hash"); err != nil {
 				t.Fatal(err)
 			}
-			if valid, err := storage.HasDashboardSession(t.Context(), "synthetic-hash", now); err != nil || valid {
+			if session, err := storage.GetDashboardSession(t.Context(), "synthetic-hash", now); err != nil || session != nil {
 				t.Fatal("session revocation failed", err)
 			}
 			payload, err := storage.LoadPrivateConfiguration(t.Context(), "feishu")

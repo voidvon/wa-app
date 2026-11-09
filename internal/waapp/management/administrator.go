@@ -21,13 +21,19 @@ var (
 	ErrInvalidCredentials = errors.New("invalid username or password")
 )
 
-const SessionDuration = 7 * 24 * time.Hour
+const (
+	SessionIdleDuration           = 30 * time.Minute
+	SessionMaxDuration            = 8 * time.Hour
+	RememberedSessionIdleDuration = 7 * 24 * time.Hour
+	RememberedSessionMaxDuration  = 30 * 24 * time.Hour
+)
 
 type Repository interface {
 	GetAdministrator(context.Context) (*protocolv1.DashboardAdministrator, error)
 	CreateAdministrator(context.Context, *protocolv1.DashboardAdministrator) (bool, error)
 	SaveDashboardSession(context.Context, *protocolv1.DashboardSession) error
-	HasDashboardSession(context.Context, string, time.Time) (bool, error)
+	GetDashboardSession(context.Context, string, time.Time) (*protocolv1.DashboardSession, error)
+	RenewDashboardSession(context.Context, *protocolv1.DashboardSession, time.Time) (*protocolv1.DashboardSession, error)
 	DeleteDashboardSession(context.Context, string) error
 	LoadPrivateConfiguration(context.Context, string) ([]byte, error)
 	SavePrivateConfiguration(context.Context, string, []byte) error
@@ -40,6 +46,7 @@ type Repository interface {
 type Administrator struct {
 	repository Repository
 	dummyHash  []byte
+	now        func() time.Time
 }
 
 func NewAdministrator(repository Repository) (*Administrator, error) {
@@ -47,7 +54,7 @@ func NewAdministrator(repository Repository) (*Administrator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Administrator{repository: repository, dummyHash: hash}, nil
+	return &Administrator{repository: repository, dummyHash: hash, now: time.Now}, nil
 }
 
 func (a *Administrator) Initialized(ctx context.Context) (bool, error) {
@@ -77,10 +84,10 @@ func (a *Administrator) Setup(ctx context.Context, username, password string) er
 	return nil
 }
 
-func (a *Administrator) Login(ctx context.Context, username, password string) (string, error) {
+func (a *Administrator) Login(ctx context.Context, username, password string, rememberDevice bool) (string, *protocolv1.DashboardSession, error) {
 	admin, err := a.repository.GetAdministrator(ctx)
 	if err != nil {
-		return "", errors.New("读取管理员失败")
+		return "", nil, errors.New("读取管理员失败")
 	}
 	hash := a.dummyHash
 	if admin != nil {
@@ -88,25 +95,59 @@ func (a *Administrator) Login(ctx context.Context, username, password string) (s
 	}
 	validPassword := bcrypt.CompareHashAndPassword(hash, []byte(password)) == nil
 	if !validPassword || admin == nil || username != admin.GetUsername() {
-		return "", ErrInvalidCredentials
+		return "", nil, ErrInvalidCredentials
 	}
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
-		return "", errors.New("创建登录会话失败")
+		return "", nil, errors.New("创建登录会话失败")
 	}
 	token := hex.EncodeToString(secret[:])
-	if err := a.repository.SaveDashboardSession(ctx, &protocolv1.DashboardSession{TokenHash: sessionHash(token), ExpiresAt: timestamppb.New(time.Now().Add(SessionDuration))}); err != nil {
-		return "", errors.New("保存登录会话失败")
+	idle, maximum := SessionIdleDuration, SessionMaxDuration
+	if rememberDevice {
+		idle, maximum = RememberedSessionIdleDuration, RememberedSessionMaxDuration
 	}
-	return token, nil
+	now := a.now()
+	session := &protocolv1.DashboardSession{TokenHash: sessionHash(token), ExpiresAt: timestamppb.New(now.Add(idle)), AbsoluteExpiresAt: timestamppb.New(now.Add(maximum)), RememberDevice: rememberDevice}
+	if err := a.repository.SaveDashboardSession(ctx, session); err != nil {
+		return "", nil, errors.New("保存登录会话失败")
+	}
+	return token, session, nil
 }
 
 func (a *Administrator) Authenticated(ctx context.Context, token string) bool {
+	return a.Authenticate(ctx, token, false) != nil
+}
+
+// Authenticate only extends an unexpired session on explicit user activity.
+func (a *Administrator) Authenticate(ctx context.Context, token string, activity bool) *protocolv1.DashboardSession {
 	if len(token) != 64 {
-		return false
+		return nil
 	}
-	valid, err := a.repository.HasDashboardSession(ctx, sessionHash(token), time.Now())
-	return err == nil && valid
+	now := a.now()
+	session, err := a.repository.GetDashboardSession(ctx, sessionHash(token), now)
+	if err != nil || session == nil {
+		return nil
+	}
+	if !now.Before(session.GetExpiresAt().AsTime()) || !now.Before(session.GetAbsoluteExpiresAt().AsTime()) {
+		return nil
+	}
+	if !activity {
+		return session
+	}
+	idle := SessionIdleDuration
+	if session.GetRememberDevice() {
+		idle = RememberedSessionIdleDuration
+	}
+	expires := now.Add(idle)
+	if absolute := session.GetAbsoluteExpiresAt().AsTime(); expires.After(absolute) {
+		expires = absolute
+	}
+	session.ExpiresAt = timestamppb.New(expires)
+	renewed, err := a.repository.RenewDashboardSession(ctx, session, now)
+	if err != nil {
+		return nil
+	}
+	return renewed
 }
 
 func (a *Administrator) Logout(ctx context.Context, token string) error {

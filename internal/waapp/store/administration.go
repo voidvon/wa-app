@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protocolv1 "github.com/pood1e/wa-app/gen/go/byte/v/forge/waapp/protocol/v1"
 	"github.com/pood1e/wa-app/internal/waapp/management"
@@ -76,17 +77,41 @@ func (s *administrationStore) CreateAdministrator(ctx context.Context, admin *pr
 }
 
 func (s *administrationStore) SaveDashboardSession(ctx context.Context, session *protocolv1.DashboardSession) error {
-	if _, err := s.exec(ctx, `DELETE FROM wa_dashboard_sessions WHERE expires_at <= $1`, time.Now().Unix()); err != nil {
+	if _, err := s.exec(ctx, `DELETE FROM wa_dashboard_sessions WHERE expires_at <= $1 OR absolute_expires_at <= $1`, time.Now().Unix()); err != nil {
 		return err
 	}
-	_, err := s.exec(ctx, `INSERT INTO wa_dashboard_sessions(token_hash,expires_at) VALUES ($1,$2)`, session.GetTokenHash(), session.GetExpiresAt().AsTime().Unix())
+	_, err := s.exec(ctx, `INSERT INTO wa_dashboard_sessions(token_hash,expires_at,absolute_expires_at,remember_device) VALUES ($1,$2,$3,$4)`, session.GetTokenHash(), session.GetExpiresAt().AsTime().Unix(), session.GetAbsoluteExpiresAt().AsTime().Unix(), dashboardRememberDeviceValue(session))
 	return err
 }
 
-func (s *administrationStore) HasDashboardSession(ctx context.Context, hash string, now time.Time) (bool, error) {
-	var count int
-	err := s.row(ctx, `SELECT COUNT(*) FROM wa_dashboard_sessions WHERE token_hash=$1 AND expires_at>$2`, hash, now.Unix()).Scan(&count)
-	return count == 1, err
+func (s *administrationStore) GetDashboardSession(ctx context.Context, hash string, now time.Time) (*protocolv1.DashboardSession, error) {
+	return scanDashboardSession(s.row(ctx, `SELECT expires_at,absolute_expires_at,remember_device FROM wa_dashboard_sessions WHERE token_hash=$1 AND expires_at>$2 AND absolute_expires_at>$2`, hash, now.Unix()), hash)
+}
+
+func (s *administrationStore) RenewDashboardSession(ctx context.Context, session *protocolv1.DashboardSession, now time.Time) (*protocolv1.DashboardSession, error) {
+	// A concurrent logout or expiry must not be undone, nor may a late request
+	// shorten a deadline that another activity request already extended.
+	return scanDashboardSession(s.row(ctx, `UPDATE wa_dashboard_sessions SET expires_at=CASE WHEN expires_at>$3 THEN expires_at ELSE $3 END WHERE token_hash=$1 AND expires_at>$2 AND absolute_expires_at>$2 AND absolute_expires_at>=$3 RETURNING expires_at,absolute_expires_at,remember_device`, session.GetTokenHash(), now.Unix(), session.GetExpiresAt().AsTime().Unix()), session.GetTokenHash())
+}
+
+func scanDashboardSession(row rowScanner, hash string) (*protocolv1.DashboardSession, error) {
+	var expires, absolute int64
+	var remember int
+	err := row.Scan(&expires, &absolute, &remember)
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &protocolv1.DashboardSession{TokenHash: hash, ExpiresAt: timestamppb.New(time.Unix(expires, 0)), AbsoluteExpiresAt: timestamppb.New(time.Unix(absolute, 0)), RememberDevice: remember == 1}, nil
+}
+
+func dashboardRememberDeviceValue(session *protocolv1.DashboardSession) int {
+	if session.GetRememberDevice() {
+		return 1
+	}
+	return 0
 }
 
 func (s *administrationStore) DeleteDashboardSession(ctx context.Context, hash string) error {

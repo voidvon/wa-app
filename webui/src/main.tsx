@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { waRouter } from './dashboard/wa-routes';
+import { trackDashboardSessionActivity } from './dashboard/wa-session-activity';
 import './styles.css';
 
 const queryClient = new QueryClient({
@@ -11,6 +12,9 @@ const queryClient = new QueryClient({
     queries: { refetchOnWindowFocus: false, retry: 1, staleTime: 5000 },
   },
 });
+
+const stopSessionActivity = trackDashboardSessionActivity();
+if (import.meta.hot) import.meta.hot.dispose(stopSessionActivity);
 
 createRoot(document.getElementById('root')!).render(
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange storageKey="wa-app-theme">

@@ -2,7 +2,7 @@ package store
 
 const SQLiteStoreSchema = `
 CREATE TABLE IF NOT EXISTS wa_dashboard_configuration (id TEXT PRIMARY KEY, payload BLOB NOT NULL);
-CREATE TABLE IF NOT EXISTS wa_dashboard_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS wa_dashboard_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, absolute_expires_at INTEGER NOT NULL DEFAULT 0, remember_device INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS wa_dashboard_sessions_expiry ON wa_dashboard_sessions(expires_at);
 CREATE TABLE IF NOT EXISTS wa_message_notifications (id TEXT PRIMARY KEY, payload BLOB NOT NULL, next_attempt INTEGER NOT NULL, delivered INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS wa_message_notifications_pending ON wa_message_notifications(delivered,next_attempt,id);

@@ -15,7 +15,11 @@ message DashboardAdministrator {
 
 message DashboardSession {
   string token_hash = 1;
+  // Rolling idle deadline. Background polling must not extend it.
   google.protobuf.Timestamp expires_at = 2;
+  // Fixed at login; renewal must never extend this deadline.
+  google.protobuf.Timestamp absolute_expires_at = 3;
+  bool remember_device = 4;
 }
 
 // Durable notification delivery state; transport configuration stays outside contracts.

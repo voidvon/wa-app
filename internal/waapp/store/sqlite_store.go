@@ -109,8 +109,10 @@ func (s *SQLiteStore) configure(ctx context.Context) error {
 }
 
 func (s *SQLiteStore) migrate(ctx context.Context) error {
-	_, err := s.queries.ExecContext(ctx, SQLiteStoreSchema)
-	return err
+	if _, err := s.queries.ExecContext(ctx, SQLiteStoreSchema); err != nil {
+		return err
+	}
+	return s.migrateDashboardSessions(ctx)
 }
 
 func (s *SQLiteStore) SaveAppArtifact(ctx context.Context, artifact *waappv1.AppArtifact) error {

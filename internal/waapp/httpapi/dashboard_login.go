@@ -81,7 +81,7 @@ func handleDashboardLoginPost(w http.ResponseWriter, r *http.Request, auth *dash
 		return
 	}
 	next = dashboardSafeRedirectTarget(r.FormValue("next"))
-	token, err := auth.administrator.Login(r.Context(), r.FormValue("username"), r.FormValue("password"))
+	token, session, err := auth.administrator.Login(r.Context(), r.FormValue("username"), r.FormValue("password"), r.FormValue("remember_device") == "on")
 	if err != nil {
 		if errors.Is(err, management.ErrInvalidCredentials) {
 			renderDashboardAuth(w, http.StatusUnauthorized, next, "用户名或密码不正确", false)
@@ -90,7 +90,7 @@ func handleDashboardLoginPost(w http.ResponseWriter, r *http.Request, auth *dash
 		}
 		return
 	}
-	http.SetCookie(w, dashboardSessionCookie(r, token))
+	http.SetCookie(w, dashboardSessionCookie(r, token, session))
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
@@ -125,19 +125,21 @@ const dashboardLoginHTML = `<!doctype html>
 <title>WA 登录</title>
 <style>
 *{box-sizing:border-box}:root{color-scheme:light dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#07130d;color:#e9fff0}body{min-height:100dvh;margin:0;display:grid;place-items:center;background:radial-gradient(circle at top,#14532d 0,#07130d 48%,#020617 100%)}main{width:min(92vw,380px);border:1px solid rgba(255,255,255,.12);border-radius:24px;background:rgba(2,6,23,.76);box-shadow:0 24px 70px rgba(0,0,0,.36);padding:32px;backdrop-filter:blur(14px)}.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}.mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#22c55e;color:#052e16;font-weight:800}.title{margin:0;font-size:22px}.sub{margin:4px 0 0;color:#a7f3d0;font-size:13px}label{display:grid;gap:8px;margin-top:16px;color:#bbf7d0;font-size:13px}input{box-sizing:border-box;width:100%;border:1px solid rgba(187,247,208,.22);border-radius:12px;background:rgba(15,23,42,.92);color:#f8fafc;padding:12px 14px;font:inherit;outline:none}input:focus{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.18)}button{width:100%;margin-top:22px;border:0;border-radius:12px;background:#22c55e;color:#052e16;padding:12px 14px;font:inherit;font-weight:700;cursor:pointer}button:hover{background:#4ade80}.hint{margin:14px 0 0;color:#86efac;font-size:12px;line-height:1.6}.error{margin:0 0 14px;border:1px solid rgba(248,113,113,.28);border-radius:12px;background:rgba(127,29,29,.32);color:#fecaca;padding:10px 12px;font-size:13px}
+.remember{display:flex;align-items:center;gap:8px}.remember input{width:auto;margin:0;accent-color:#22c55e}
 </style>
 </head>
 <body>
 <main>
-  <div class="brand"><div class="mark">WA</div><div><h1 class="title">{{if .Setup}}设置管理员{{else}}登录 WA 管理{{end}}</h1><p class="sub">{{if .Setup}}首次使用，请创建管理员账号{{else}}输入用户名和密码，登录状态保留 7 天{{end}}</p></div></div>
+  <div class="brand"><div class="mark">WA</div><div><h1 class="title">{{if .Setup}}设置管理员{{else}}登录 WA 管理{{end}}</h1><p class="sub">{{if .Setup}}首次使用，请创建管理员账号{{else}}输入用户名和密码{{end}}</p></div></div>
   {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
   <form method="post" action="{{if .Setup}}/setup{{else}}/login{{end}}" autocomplete="on">
     <input type="hidden" name="next" value="{{.Next}}">
     <label>用户名<input name="username" type="text" autocomplete="username" minlength="3" maxlength="64" required autofocus></label>
     <label>密码<input name="password" type="password" autocomplete="{{if .Setup}}new-password{{else}}current-password{{end}}" {{if .Setup}}minlength="12"{{end}} required></label>
     {{if .Setup}}<label>确认密码<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label>{{end}}
+    {{if not .Setup}}<label class="remember"><input name="remember_device" type="checkbox">记住此设备</label>{{end}}
     <button type="submit">{{if .Setup}}创建管理员{{else}}登录{{end}}</button>
-    <p class="hint">{{if .Setup}}密码至少 12 字节，最长 72 字节。管理员信息保存在当前数据库。{{else}}关闭浏览器后仍会保持登录，可在管理页面退出。{{end}}</p>
+    <p class="hint">{{if .Setup}}密码至少 12 字节，最长 72 字节。管理员信息保存在当前数据库。{{else}}普通登录：闲置 30 分钟过期，最长 8 小时。<br>记住此设备：闲置 7 天过期，使用时续期，最长 30 天。请仅在个人设备上勾选。{{end}}</p>
   </form>
 </main>
 </body>

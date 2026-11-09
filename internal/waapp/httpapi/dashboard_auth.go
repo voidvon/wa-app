@@ -84,6 +84,8 @@ func withDashboardAuth(next http.Handler, auth *dashboardAuthConfig) http.Handle
 			handleDashboardLogin(w, r, auth)
 		case "/logout":
 			handleDashboardLogout(w, r, auth)
+		case "/api/dashboard/session/activity":
+			handleDashboardSessionActivity(w, r, auth)
 		default:
 			if authenticatedDashboardRequest(r, auth) {
 				next.ServeHTTP(w, r)
