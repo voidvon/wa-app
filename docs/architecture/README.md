@@ -17,10 +17,14 @@ flowchart LR
     Account --> Runtime[内存 / Valkey]
 ~~~
 
-两个进程由各自组合根装配。运行服务持有持久数据和账号连接，添加服务持有短期流程，通过内部 gRPC 交付账号材料。
+默认由 `cmd/wa-app` 在同一进程装配两个应用，运行与添加 RPC 共用一个认证端口，通过本机 gRPC 交付账号材料。Dashboard 构建产物嵌入二进制。也可通过原有两个入口部署成独立进程。运行应用持有持久数据和账号连接，添加应用持有短期流程；数据生命周期与 Proto 契约保持一致。
 
 | 代码 | 职责 |
 | --- | --- |
+| cmd/wa-app | 单文件入口、serve / health / migrate / version 子命令 |
+| internal/service | 两应用共用装配、资源清理与统一启动 |
+| internal/migrate | 离线数据库迁移入口 |
+| webui/embed.go | 构建时嵌入 Dashboard |
 | cmd/wa-app-service | 账号运行服务组合根 |
 | cmd/wa-account-add-service | 账号添加服务组合根 |
 | internal/waapp/app/account | 账号、消息、联系人、群管理、设置和复核用例 |
@@ -64,3 +68,6 @@ flowchart LR
 账号级代理配置随账号材料接纳并持久化；修改配置后刷新该账号连接。拒登账号可在详情页查询与提交复核，复核状态独立于登录状态保存。
 
 已有部署按[迁移说明](../migration.md)完成停写、备份、离线转换和两服务统一切换。设备 worker 的构建与运行分别见 [Android](../../tools/android-attestation/README.md)和 [iOS](../../tools/ios-attestation/README.md)。
+
+
+Dashboard 通过所选 SQL 后端持久化单管理员账号与服务端登录会话；首次初始化仅开放本机入口，应用数据始终要求登录。飞书 Webhook 属于本服务私有传输配置，不进入公共 Proto 或账号投影。成功解密的长连接入站消息通过通知适配器写入持久化队列，由后台独立发送与重试；投递去重记录保留，成功后清除队列内的正文副本。通知不导入旧聊天记录。

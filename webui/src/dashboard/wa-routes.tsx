@@ -7,6 +7,7 @@ export const waRouter = createBrowserRouter([
     Component: WaLayout,
     children: [
       { index: true, Component: WaHomeRoute },
+      { path: 'settings/notifications', Component: WaHomeRoute },
       { path: 'accounts/new', Component: WaCreateAccountRoute },
       {
         path: 'accounts/:accountID',

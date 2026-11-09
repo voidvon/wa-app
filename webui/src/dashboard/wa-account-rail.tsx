@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Info, Loader2, Plus, Settings2 } from 'lucide-react';
+import { Bell, Info, Loader2, LogOut, Plus, Settings2 } from 'lucide-react';
 import { Link, NavLink } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -29,7 +29,7 @@ import { WaThemeToggle } from './wa-theme-toggle';
 import { WhatsAppIcon } from './wa-brand-icon';
 import { waAccountPath, waChatsPath } from './wa-route-paths';
 
-type RailProps = { accounts: WAAccount[]; selectedID: string; avatarVersion: string; connections: Map<string, LongConnectionState>; loading: boolean; connectionsLoading: boolean; hasNextPage: boolean; loadingMore: boolean; onLoadMore: () => void; };
+type RailProps = { accounts: WAAccount[]; selectedID: string; avatarVersion: string; connections: Map<string, LongConnectionState>; loading: boolean; connectionsLoading: boolean; hasNextPage: boolean; loadingMore: boolean; onLoadMore: () => void; onOpenNotifications: () => void; };
 type AccountItemProps = { account: WAAccount; selected: boolean; avatarVersion: string; connection?: LongConnectionState; loading: boolean };
 
 const railButtonClass = 'h-14 gap-3 rounded-xl p-2! group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-12! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1!';
@@ -37,7 +37,7 @@ const accountActionClass = 'top-1/2! right-2! size-7! -translate-y-1/2 rounded-f
 const collapsedTextClass = 'group-data-[collapsible=icon]:hidden';
 const actionButtonClass = 'h-10 gap-3 rounded-full px-3 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!';
 
-export function WaAccountRail({ accounts, selectedID, avatarVersion, connections, loading, connectionsLoading, hasNextPage, loadingMore, onLoadMore }: RailProps) {
+export function WaAccountRail({ accounts, selectedID, avatarVersion, connections, loading, connectionsLoading, hasNextPage, loadingMore, onLoadMore, onOpenNotifications }: RailProps) {
   const [query, setQuery] = useState('');
   const { state, isMobile, setOpenMobile } = useSidebar();
   const expanded = state === 'expanded' || isMobile;
@@ -66,6 +66,10 @@ export function WaAccountRail({ accounts, selectedID, avatarVersion, connections
         <SidebarMenu>
           <SidebarMenuItem><SidebarMenuButton asChild tooltip="添加账号" className={actionButtonClass}><Link to="/accounts/new" aria-label="添加账号" onClick={() => setOpenMobile(false)}><Plus className="size-5!" /><span className={collapsedTextClass}>添加账号</span></Link></SidebarMenuButton></SidebarMenuItem>
           {selectedID ? <SidebarMenuItem><SidebarMenuButton asChild tooltip="账号设置" className={actionButtonClass}><Link to={waAccountPath(selectedID)} aria-label="账号设置" onClick={() => setOpenMobile(false)}><Settings2 className="size-5!" /><span className={collapsedTextClass}>账号设置</span></Link></SidebarMenuButton></SidebarMenuItem> : null}
+        </SidebarMenu>
+        <SidebarMenu>
+          <SidebarMenuItem><SidebarMenuButton type="button" tooltip="飞书消息通知" aria-label="飞书消息通知" className={actionButtonClass} onClick={() => { setOpenMobile(false); onOpenNotifications(); }}><Bell className="size-5!" /><span className={collapsedTextClass}>飞书消息通知</span></SidebarMenuButton></SidebarMenuItem>
+          <SidebarMenuItem><form method="post" action="/logout"><SidebarMenuButton type="submit" aria-label="退出管理员登录" tooltip="退出管理员登录" className={actionButtonClass}><LogOut className="size-5!" /><span className={collapsedTextClass}>退出管理员登录</span></SidebarMenuButton></form></SidebarMenuItem>
         </SidebarMenu>
         <WaThemeToggle className="size-10 rounded-full group-data-[collapsible=icon]:mx-auto" />
       </SidebarFooter>

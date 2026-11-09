@@ -29,6 +29,7 @@ type serverCore struct {
 
 	factory         SessionFactory
 	longConnections *session.Manager
+	messageNotifier func(context.Context, *waappv1.MessageSession, *waappv1.InboundMessage, *waappv1.DecryptedMessage) error
 }
 
 // Each service groups the operations of one application capability.
@@ -96,6 +97,11 @@ func New(store Repository, runtime EphemeralState, runner wacore.Communication, 
 	server := newApplication(&serverCore{lifecycle: semaphore.NewWeighted(1), pictureLookups: semaphore.NewWeighted(2), store: store, runtime: runtime, runner: runner, clock: clock, ids: ids, factory: factory})
 	server.longConnections = session.New(server, store, runtime, clock, ids)
 	return server
+}
+
+// SetMessageNotifier installs the durable delivery adapter before the application starts.
+func (s *Application) SetMessageNotifier(notifier func(context.Context, *waappv1.MessageSession, *waappv1.InboundMessage, *waappv1.DecryptedMessage) error) {
+	s.messageNotifier = notifier
 }
 
 func (s *serverCore) RunLongConnections(ctx context.Context) error {

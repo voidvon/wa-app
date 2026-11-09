@@ -42,6 +42,52 @@ jobs:
               output.write('services=' + json.dumps(selected) + '\n')
           PY
 
+  binaries:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: linux, arch: amd64, suffix: '' }
+          - { os: linux, arch: arm64, suffix: '' }
+          - { os: darwin, arch: amd64, suffix: '' }
+          - { os: darwin, arch: arm64, suffix: '' }
+          - { os: windows, arch: amd64, suffix: '.exe' }
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+      - name: Install contract generators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Build standalone binary
+        env:
+          GOOS: ${{ matrix.platform.os }}
+          GOARCH: ${{ matrix.platform.arch }}
+        run: scripts/build-binary.sh "dist/wa-app-${GOOS}-${GOARCH}${{ matrix.platform.suffix }}"
+      - name: Check embedded Dashboard
+        run: go test -tags dashboard ./webui
+      - name: Add checksums and notices
+        run: |
+          cd dist
+          sha256sum wa-app-* > SHA256SUMS
+          cp ../NOTICE .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wa-app-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+          path: dist/
+          if-no-files-found: error
+
   build:
     needs: [select, test]
     runs-on: ubuntu-latest

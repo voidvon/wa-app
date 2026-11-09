@@ -48,6 +48,11 @@ func openSQLite(ctx context.Context, path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("sqlite store path is required")
 	}
 	if path != ":memory:" {
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		path = absolute
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 			return nil, err
 		}
@@ -63,7 +68,11 @@ func openSQLite(ctx context.Context, path string) (*SQLiteStore, error) {
 			return nil, err
 		}
 	}
-	dsn := (&url.URL{Scheme: "file", Path: path, RawQuery: "_txlock=immediate&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"}).String()
+	uriPath := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(uriPath, "/") {
+		uriPath = "/" + uriPath
+	}
+	dsn := (&url.URL{Scheme: "file", Path: uriPath, RawQuery: "_txlock=immediate&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"}).String()
 	if path == ":memory:" {
 		dsn = "file::memory:?_txlock=immediate&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	}

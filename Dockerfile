@@ -32,6 +32,13 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/wa-account-add-service ./cmd/wa-account-add-service
 
+FROM source AS standalone-build
+ARG TARGETOS
+ARG TARGETARCH
+COPY webui/*.go webui/
+COPY --from=dashboard /src/webui/dist webui/dist
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags dashboard -trimpath -o /out/wa-app ./cmd/wa-app
+
 FROM alpine:3.24.2 AS base
 RUN apk add --no-cache ca-certificates && addgroup -S -g 10001 app && adduser -S -u 10001 -G app app && mkdir -p /var/lib/wa-app && chown app:app /var/lib/wa-app
 WORKDIR /app
@@ -49,3 +56,10 @@ COPY --from=dashboard /src/webui/dist /app/dashboard/wa
 EXPOSE 50091 8080
 HEALTHCHECK --interval=15s --timeout=5s CMD ["/app/wa-app-service", "health"]
 ENTRYPOINT ["/app/wa-app-service"]
+
+FROM base AS standalone
+COPY --from=standalone-build /out/wa-app /app/
+ENV WA_APP_LISTEN_ADDR=:50091 WA_APP_DASHBOARD_HTTP_ADDR=:8080 WA_APP_SQLITE_FILE=/var/lib/wa-app/wa-app.sqlite3
+EXPOSE 50091 8080
+HEALTHCHECK --interval=15s --timeout=5s CMD ["/app/wa-app", "health"]
+ENTRYPOINT ["/app/wa-app"]

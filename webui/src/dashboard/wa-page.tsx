@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, Navigate, Outlet, useMatches, useNavigate, useOutletContext, useParams } from 'react-router';
+import { Link, Navigate, Outlet, useLocation, useMatches, useNavigate, useOutletContext, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { deleteWaAccount, getWaAccounts, waAccountID, waKeys } from './wa-api';
 import { WaAccountAdd } from './wa-account-add';
 import { WaAccountInfoPage } from './wa-account-info-page';
 import { WaAccountRail } from './wa-account-rail';
+import { WaNotificationSettings } from './wa-notification-settings';
 import { WhatsAppIcon } from './wa-brand-icon';
 import { WaInbox } from './wa-inbox';
 import { useWaLongConnectionIndex } from './wa-long-connection-badge';
@@ -25,6 +26,8 @@ const emptyAccounts: WAAccount[] = [];
 const accountSidebarStyle = { '--sidebar-width': '17rem', '--sidebar-width-icon': '4rem' } as CSSProperties;
 
 export function WaLayout() {
+  const location = useLocation();
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(() => location.pathname === '/settings/notifications');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [accountAvatarVersion, setAccountAvatarVersion] = useState('');
@@ -41,8 +44,9 @@ export function WaLayout() {
   const context: WaRouteContext = { accounts, accountsLoading: accountsQuery.isLoading, accountsError: accountsQuery.error, connections: connections.byAccount, deleting: deletion.isPending, refreshAccounts, refreshAccountAvatars, deleteAccount: deletion.mutate, done: toast.success, error: showErrorToast };
   return (
     <SidebarProvider open={accountRailExpanded} onOpenChange={setAccountRailExpanded} style={accountSidebarStyle} className="h-dvh min-h-0 overflow-hidden bg-background text-foreground">
-      <WaAccountRail accounts={accounts} selectedID={selectedID} avatarVersion={accountAvatarVersion} connections={connections.byAccount} loading={accountsQuery.isLoading} connectionsLoading={connections.loading} hasNextPage={Boolean(accountsQuery.hasNextPage)} loadingMore={accountsQuery.isFetchingNextPage} onLoadMore={() => { void accountsQuery.fetchNextPage(); }} />
+      <WaAccountRail accounts={accounts} selectedID={selectedID} avatarVersion={accountAvatarVersion} connections={connections.byAccount} loading={accountsQuery.isLoading} connectionsLoading={connections.loading} hasNextPage={Boolean(accountsQuery.hasNextPage)} loadingMore={accountsQuery.isFetchingNextPage} onLoadMore={() => { void accountsQuery.fetchNextPage(); }} onOpenNotifications={() => setNotificationSettingsOpen(true)} />
       <SidebarInset className="h-dvh min-w-0 overflow-hidden"><Outlet context={context} /></SidebarInset>
+      <WaNotificationSettings open={notificationSettingsOpen} onOpenChange={setNotificationSettingsOpen} />
       <Toaster richColors closeButton />
     </SidebarProvider>
   );

@@ -4,40 +4,55 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	waappv1 "github.com/pood1e/wa-app/gen/go/byte/v/forge/waapp/v1"
 	"github.com/pood1e/wa-app/internal/waapp/app/account"
+	"github.com/pood1e/wa-app/internal/waapp/management"
 )
 
 type dashboardHTTP struct {
-	staticDir string
-	service   *account.Application
-	adding    waappv1.WaAccountAddServiceClient
+	service *account.Application
+	adding  waappv1.WaAccountAddServiceClient
 }
 
 type Config struct {
-	ListenAddr string
-	StaticDir  string
-	Password   string
+	ListenAddr         string
+	StaticDir          string
+	StaticFS           fs.FS
+	Administrator      *management.Administrator
+	Notifications      *management.Notifications
+	SetupLoopbackProxy bool
 }
 
 func Serve(ctx context.Context, cfg Config, service *account.Application, adding waappv1.WaAccountAddServiceClient) error {
-	listenAddr, staticDir := cfg.ListenAddr, cfg.StaticDir
-	auth := newDashboardAuthConfig(cfg.Password)
+	listenAddr := cfg.ListenAddr
 	if strings.TrimSpace(listenAddr) == "" {
 		return nil
 	}
+	if cfg.Administrator == nil || cfg.Notifications == nil {
+		return fmt.Errorf("dashboard administrator and notification storage are required")
+	}
+	auth := &dashboardAuthConfig{administrator: cfg.Administrator, attempts: make(map[string]loginAttempt), setupLoopbackProxy: cfg.SetupLoopbackProxy}
+	files := cfg.StaticFS
+	if files == nil {
+		files = os.DirFS(firstNonEmpty(cfg.StaticDir, "/app/dashboard/wa"))
+	}
+	if info, err := fs.Stat(files, "index.html"); err != nil || info.IsDir() {
+		return fmt.Errorf("dashboard index.html is unavailable")
+	}
 	server := &dashboardHTTP{
-		staticDir: firstNonEmpty(staticDir, "/app/dashboard/wa"),
-		service:   service,
-		adding:    adding,
+		service: service,
+		adding:  adding,
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/wa/notification-settings", func(w http.ResponseWriter, r *http.Request) { handleNotificationSettings(w, r, cfg.Notifications) })
 	mux.HandleFunc("/api/wa/health", server.handleHealth)
 	mux.HandleFunc("/api/wa/account-add", server.handleAccountAdd)
 	mux.HandleFunc("/api/wa/account-add/", server.handleAccountAdd)
@@ -67,8 +82,8 @@ func Serve(ctx context.Context, cfg Config, service *account.Application, adding
 	mux.HandleFunc("/api/wa/long-connections", server.handleLongConnections)
 	mux.HandleFunc("/mf/wa/", http.NotFound)
 	mux.HandleFunc("/healthz", server.handleHealth)
-	mux.Handle("/", standaloneDashboard(server.staticDir))
-	handler := withCORS(withOptionalDashboardAuth(mux, auth))
+	mux.Handle("/", standaloneDashboard(files))
+	handler := http.NewCrossOriginProtection().Handler(withDashboardAuth(mux, auth))
 	httpServer := &http.Server{Addr: listenAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
 	finished := make(chan struct{})
 	shutdownDone := make(chan struct{})

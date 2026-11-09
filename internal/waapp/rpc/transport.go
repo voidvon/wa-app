@@ -53,6 +53,11 @@ func Serve(ctx context.Context, address string, server *grpc.Server) error {
 	if err != nil {
 		return err
 	}
+	return ServeListener(ctx, listener, server)
+}
+
+// ServeListener owns the listener and stops the server before returning.
+func ServeListener(ctx context.Context, listener net.Listener, server *grpc.Server) error {
 	defer listener.Close()
 	stopped := make(chan struct{})
 	shutdownDone := make(chan struct{})
@@ -74,7 +79,7 @@ func Serve(ctx context.Context, address string, server *grpc.Server) error {
 			<-done
 		}
 	}()
-	err = server.Serve(listener)
+	err := server.Serve(listener)
 	close(stopped)
 	<-shutdownDone
 	if ctx.Err() != nil {

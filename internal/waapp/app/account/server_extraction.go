@@ -51,6 +51,11 @@ func (s *serverCore) DecryptWithProtocol(ctx context.Context, req *waappv1.Decry
 	if result.MessageKind != waappv1.InboundMessageKind_INBOUND_MESSAGE_KIND_UNSPECIFIED {
 		msg.Kind = result.MessageKind
 	}
+	if s.messageNotifier != nil && otpSource == waappv1.WaOtpSource_WA_OTP_SOURCE_LONG_CONNECTION {
+		if err := s.messageNotifier(ctx, session, msg, result.DecryptedMessage); err != nil {
+			return &waappv1.DecryptMessageResponse{Error: shared.ToProtoError(shared.NewError(waappv1.WaErrorCode_WA_ERROR_CODE_INTERNAL, "queue message notification failed", true))}, nil
+		}
+	}
 	if contact := wamodel.ContactFromDecryptedMessage(session.GetWaAccountId(), msg, shared.FirstNonEmpty(result.DecryptedMessage.GetPlaintextText().GetValue(), result.DecryptedMessage.GetPlaintextText().GetRedactedValue()), s.clock.Now()); contact != nil {
 		_ = s.store.SaveWAContacts(ctx, []*waappv1.WAContact{contact})
 	}

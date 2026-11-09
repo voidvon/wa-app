@@ -34,6 +34,10 @@ func TestRuntimeRequiresExplicitBackend(t *testing.T) {
 	if err != nil || cfg.Store != "postgres" {
 		t.Fatal("explicit PostgreSQL configuration was rejected")
 	}
+	t.Setenv("WA_SERVICE_TOKEN", "")
+	if _, err := LoadRuntime(); err == nil {
+		t.Fatal("separate runtime silently generated a service token")
+	}
 }
 
 func TestRuntimeEphemeralBackend(t *testing.T) {

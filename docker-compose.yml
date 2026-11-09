@@ -12,7 +12,8 @@ services:
       WA_APP_EPHEMERAL_STORE: ${WA_APP_EPHEMERAL_STORE:-memory}
       WA_APP_VALKEY_URL: ${WA_APP_VALKEY_URL:-}
       WA_ACCOUNT_ADD_TARGET: wa-account-add:50092
-      WA_APP_AUTH_PASSWORD: ${WA_APP_AUTH_PASSWORD:-}
+      # The published HTTP port below is restricted to host loopback.
+      WA_APP_SETUP_LOOPBACK_PROXY: "true"
       WA_COMMON_PROXY: ${WA_COMMON_PROXY:-}
     ports:
       - "127.0.0.1:50091:50091"

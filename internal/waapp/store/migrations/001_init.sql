@@ -221,3 +221,8 @@ ALTER TABLE wa_decrypted_messages ADD COLUMN IF NOT EXISTS content JSONB NOT NUL
 CREATE INDEX IF NOT EXISTS wa_decrypted_messages_change_target_idx ON wa_decrypted_messages ((content->'change'->>'target_provider_message_id'));
 
 ALTER TABLE wa_contacts ADD COLUMN IF NOT EXISTS saved_name TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS wa_dashboard_configuration (id TEXT PRIMARY KEY, payload BYTEA NOT NULL);
+CREATE TABLE IF NOT EXISTS wa_dashboard_sessions (token_hash TEXT PRIMARY KEY, expires_at BIGINT NOT NULL);
+CREATE INDEX IF NOT EXISTS wa_dashboard_sessions_expiry ON wa_dashboard_sessions(expires_at);
+CREATE TABLE IF NOT EXISTS wa_message_notifications (id TEXT PRIMARY KEY, payload BYTEA NOT NULL, next_attempt BIGINT NOT NULL, delivered INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS wa_message_notifications_pending ON wa_message_notifications(delivered,next_attempt,id);

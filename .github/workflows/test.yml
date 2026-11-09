@@ -54,3 +54,7 @@ jobs:
       - run: npm --prefix webui test
       - run: npm --prefix webui run lint
       - run: npm --prefix webui run build
+      - run: go test -tags dashboard ./webui
+      - name: Build standalone binary
+        run: CGO_ENABLED=0 go build -tags dashboard -trimpath -o .tmp/wa-app ./cmd/wa-app
+      - run: .tmp/wa-app version

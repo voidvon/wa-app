@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package byte.v.forge.waapp.v1;
+
+import "byte/v/forge/waapp/v1/common.proto";
+
+option go_package = "github.com/pood1e/wa-app/gen/go/byte/v/forge/waapp/v1;waappv1";
+
+// Safe dashboard projection. Transport addresses and reusable secrets are never returned.
+message DashboardNotificationSettings {
+  bool enabled = 1;
+  bool webhook_configured = 2;
+  bool signing_configured = 3;
+}
+
+message DashboardNotificationSettingsResponse {
+  DashboardNotificationSettings settings = 1;
+  WaError error = 2;
+}
